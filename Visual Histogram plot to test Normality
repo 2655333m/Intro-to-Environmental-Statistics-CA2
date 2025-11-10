@@ -1,0 +1,64 @@
+# Histograms support Shapiro–Wilk findings
+#Visual Histogram plot to test Normality of Humdepth
+ggplot(soil, aes(x = Humdepth)) +
+  geom_histogram(bins = 30, fill = "blue", color = "white") +
+  labs(title = "Histogram of Humus Depth",
+       x = "Percent Bleaching", y = "Frequency") +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.line = element_line(colour = "black", linewidth = 0.5),
+  )
+
+gggplot(soil, aes(x = log10(Humdepth))) +
+  geom_histogram(binwidth = 0.1, fill = "lightblue", color = "black") +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Histogram of Log10 Humus Depth",
+    x = "Log10(Humus Depth, cm)",
+    y = "Frequency"
+  ) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+
+ggplot(soil, aes(x = log10(Humdepth))) +
+  geom_histogram(binwidth = 0.1, fill = "lightblue", color = "black") +
+  theme_minimal(base_size = 13) +
+  labs(
+    title = "Histogram of Log10 Humus Depth",
+    x = "Log10(Humus Depth, cm)",
+    y = "Frequency"
+  ) +
+  theme(plot.title = element_text(face = "bold", hjust = 0.5))
+
+Visual Histogram plot to test Normality of pH
+# Histogram of raw pH
+ggplot(soil, aes(x = pH)) +
+  geom_histogram(bins = 30, fill = "blue", color = "white") +
+  labs(
+    title = "Histogram of Soil pH",
+    x = "Soil pH",
+    y = "Frequency"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.line = element_line(colour = "black", linewidth = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+
+# Histogram of log10-transformed pH
+# Visual representation that pH is non normal
+ggplot(soil, aes(x = log10(pH + 1))) +
+  geom_histogram(bins = 30, fill = "blue", color = "white") +
+  labs(
+    title = "Histogram of Log10-Transformed Soil pH",
+    x = "log10(pH + 1)",
+    y = "Frequency"
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.line = element_line(colour = "black", linewidth = 0.5),
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(
