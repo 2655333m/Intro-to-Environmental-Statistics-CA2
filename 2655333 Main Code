@@ -1,0 +1,310 @@
+library(vegan)
+library(ggplot2) 
+library(car)
+
+# Load datasets
+soil <- read.csv("~/Desktop/GeoScience/Masters/Stats/Assesments/CA2/characteristics.csv")
+species <- read.csv("~/Desktop/GeoScience/Masters/Stats/Assesments/CA2/species.csv")
+
+str(species)
+str(soil)
+
+# Create a new column in 'soil' and 'species' to show management type
+soil$Grazing <- ifelse(soil$Site >= 1 & soil$Site <= 8, "Ungrazed", "Grazed")
+species$Grazing <- ifelse(species$Site >= 1 & species$Site <= 8, "Ungrazed", "Grazed")
+species_only <- species[, 2:45] #ataframe with only numeric species data
+
+
+# Check the result
+head(soil)
+head(species)
+View(soil)
+View(species)
+
+species_ordered <- species[order(species$Grazing, species$Site), ]
+tabasco(species[ , 2:45]) # Since site and grazing can't be included this eliminates tehm from plot
+
+pca.species <- prcomp(species_only)
+summary(pca.species)
+plot(pca.species,type="l")
+biplot(pca.species, scaling=-1)
+
+# SD < 2 = PCA/RDA
+# SD 2-4 = Transition zone, PCA/RDA suitable
+# SD > 4 = DCA/NMDS
+dca.species <- decorana(species_only)
+dca.species
+summary(dca.species)
+plot(dca.species)
+
+# env.var
+env.var <- bioenv(species_only ~ N + P + K + Ca + Mg + S + Al + Fe + Mn + Zn + Mo + Baresoil + Humdepth + pH,
+                  data = soil, metric = "euclidean")
+env.var
+summary(env.var)
+
+# PCA - find key drivers of species composition
+dca.species.envfit<-envfit(dca.species, soil, permutations=1000)
+dca.species.envfit
+
+# Plot PCA
+plot(dca.species, display = "sites")
+plot(dca.species.envfit)
+
+# Plot DCA with coloured ellipses for grazing
+plot(dca.species, display ="sites", type="p", col="black", pch=19,
+     main="DCA Ordination of Species Composition by Grazing Status",
+     xlab="DCA1", ylab="DCA2")
+
+with(soil, ordiellipse(dca.species, Grazing, kind="se", conf=0.95, label=TRUE, col=c("red","blue")))
+
+legend("topright", legend=c("Grazed","Ungrazed"), col=c("red","blue"), pch=19, bty="n")
+
+# Plot DCA with coloured ellipses for Humus Depth
+soil$Humdepth_group <- cut(soil$Humdepth, breaks=3, labels=c("Shallow","Medium","Deep"))
+
+plot(dca.species, display ="sites", type="p", col="black", pch=19,
+     main="DCA Ordination of Species Composition by Humus Depth",
+     xlab="DCA1", ylab="DCA2")
+
+with(soil, ordiellipse(dca.species, Humdepth_group, kind="se", conf=0.95, label=TRUE,  col=c("green","orange","red")))
+legend("topright", legend=c("Shallow","Medium","Deep"), col=c("green","orange","red"), pch=19, bty="n")
+
+# Anosim test for correlation between species and grazing/non-grazing
+species.dis <- vegdist(species_only)
+species.anosism <- with(soil, anosim(species.dis, Grazing))
+species.anosism
+
+# NMDS ordination showing Grazing, Baresoil, and Humdepth
+# NMDS ordination showing Grazing
+nmds.species <- metaMDS(comm = species_only, distance = "bray", trace = FALSE, autotransform = FALSE)
+
+MDS_xy <- data.frame(nmds.species$points)
+MDS_xy$Grazing <- soil$Grazing
+MDS_xy$Baresoil <- soil$Baresoil
+
+ggplot(MDS_xy, aes(MDS1, MDS2, color = Grazing)) +
+  geom_point(size = 3, alpha = 0.8) +
+  scale_color_manual(values = c("red", "blue")) +
+  theme_bw() +
+  labs(
+    title = "NMDS Ordination of Species Composition by Grazing Status",
+    x = "NMDS1",
+    y = "NMDS2",
+    color = "Grazing"
+  )
+
+nmds.species$stress
+species.envfit<-envfit(nmds.species, species_only, permuatations =999) 
+species.envfit 
+
+# Ensure soil data matches NMDS site order
+soil <- soil[rownames(nmds.species$points), , drop = FALSE]
+
+# Create the base NMDS ordination plot (blank)
+ordiplot(nmds.species, type = "n", main = "NMDS Ordination with Significent Species")
+
+# Add coloured site points by Grazing (factor with 2 levels: Grazed / Ungrazed)
+points(nmds.species, display = "sites",
+       pch = c(16, 17)[as.numeric(factor(soil$Grazing))],   # shapes
+       col = c("red", "blue")[as.numeric(factor(species$Grazing))],  # colours
+       cex = 1.2)
+
+# Add legend
+legend("topright",
+       legend = levels(factor(soil$Grazing)),
+       col = c("red", "blue"),
+       pch = c(16, 17),
+       title = "Grazing Status")
+
+# Overlay species vectors (only significant ones)
+plot(species.envfit, p.max = 0.01, col = "black", cex = 0.7)
+
+# Create baresoil group
+soil$Baresoil_group <- cut(soil$Baresoil,
+                           breaks = 3,
+                           labels = c("Low", "Medium", "High"))
+
+# Create the base NMDS ordination plot 
+ordiplot(nmds.species, type = "n", main = "NMDS Ordination by Baresoil")
+
+# Add coloured site points by Baresoil (factor with 3 levels: Low / Medium / High)
+points(nmds.species, display = "sites",
+       pch = c(16, 17, 15)[as.numeric(factor(soil$Baresoil_group))],   # shapes
+       col = c("green3", "orange", "red")[as.numeric(factor(soil$Baresoil_group))],  # colours
+       cex = 1.2)
+
+# Add legend
+legend("topright",
+       legend = levels(factor(soil$Baresoil_group)),
+       col = c("green3", "orange", "red"),
+       pch = c(16, 17, 15),
+       title = "Baresoil (Disturbance Level)")
+
+# Overlay species vectors (only significant ones)
+plot(species.fit, p.max = 0.01, col = "black", cex = 0.7)
+
+# Create Humdepth groups (Low / Medium / High)
+soil$Humdepth_group <- cut(soil$Humdepth,
+                           breaks = 3,
+                           labels = c("Shallow", "Medium", "Deep"))
+
+# Create the base NMDS ordination plot (blank)
+ordiplot(nmds.species, type = "n", main = "NMDS Ordination by Humus Depth")
+
+# Add coloured site points by Humdepth group
+points(nmds.species, display = "sites",
+       pch = c(16, 17, 15)[as.numeric(factor(soil$Humdepth_group))],   # shapes
+       col = c("brown", "orange", "darkgreen")[as.numeric(factor(soil$Humdepth_group))],  # colours
+       cex = 1.2)
+
+# Add legend
+legend("topright",
+       legend = levels(factor(soil$Humdepth_group)),
+       col = c("brown", "orange", "darkgreen"),
+       pch = c(16, 17, 15),
+       title = "Humus Depth")
+
+# Overlay species vectors (only significant ones)
+plot(species.fit, p.max = 0.01, col = "black", cex = 0.7)
+
+# Create pH groups (Low / Medium / High)
+soil$pH_group <- cut(soil$pH,
+                     breaks = 3,
+                     labels = c("Low", "Medium", "High"))
+
+# Create the base NMDS ordination plot 
+ordiplot(nmds.species, type = "n", main = "NMDS Ordination by Soil pH")
+
+# Add coloured site points by pH group
+points(nmds.species, display = "sites",
+       pch = c(16, 17, 15)[as.numeric(factor(soil$pH_group))],   # shapes
+       col = c("purple", "orange", "yellow")[as.numeric(factor(soil$pH_group))],  # colours
+       cex = 1.2)
+
+# Add legend
+legend("topright",
+       legend = levels(factor(soil$pH_group)),
+       col = c("purple", "orange", "yellow"),
+       pch = c(16, 17, 15),
+       title = "Soil pH")
+
+# Overlay species vectors (only significant ones)
+plot(species.fit, p.max = 0.01, col = "black", cex = 0.7)
+
+envfit.species <- envfit(nmds.species, soil, permutations = 999, na.rm = TRUE)
+envfit.species
+
+
+# Fit only numeric, significent environmental variables
+envfit.vectors <- envfit(nmds.species,
+                         soil[, c("N","P","K","Ca","Mg","S","Al","Fe","Mn","Zn","Mo","Baresoil","Humdepth","pH")],
+                         permutations = 999,
+                         na.rm = TRUE)
+
+# Plot only sites + significant numeric vectors
+ordiplot(nmds.species, type = "n", main = "NMDS with Significant Environmental Vectors")
+
+points(nmds.species, display = "sites",
+       pch = c(16,17)[as.numeric(factor(soil$Grazing))],
+       col = c("red","blue")[as.numeric(factor(soil$Grazing))],
+       cex = 1.2)
+
+legend("topright",
+       legend = levels(factor(soil$Grazing)),
+       col = c("red","blue"),
+       pch = c(16,17),
+       title = "Grazing Status")
+
+plot(envfit.vectors, p.max = 0.05, col = "black", cex = 0.8)
+
+# Fit only numeric signficent environmental vectors 
+envfit.vectors <- envfit(nmds.species,
+                         soil[, c("N","P","K","Ca","Mg","S","Al","Fe","Mn","Zn","Mo","Baresoil","Humdepth","pH")],
+                         permutations = 999, na.rm = TRUE)
+
+# NMDS: Soil Characteristics  and grazing
+ordiplot(nmds.species, type = "n", main = "NMDS Ordination with significent Soil Characterisics")
+
+points(nmds.species, display = "sites",
+       pch = c(16,17)[as.numeric(factor(soil$Grazing))],
+       col = c("red","blue")[as.numeric(factor(soil$Grazing))],
+       cex = 1.2)
+
+
+# Significant numeric vectors only (no centroids)
+plot(envfit.vectors, p.max = 0.05, col = "black", cex = 0.7)
+
+legend("topright",
+       legend = levels(factor(soil$Grazing)),
+       col = c("red","blue"),
+       pch = c(16,17),
+       title = "Grazing Status")
+
+# Calculate species dissimilarity matrix
+species.dis <- vegdist(species_only)
+
+# Perform hierarchical clustering using average linkage
+species.cluster <- hclust(species.dis, method = "average")
+
+# Plot basic dendrogram
+plot(species.cluster)
+
+# Plot tidier dendrogram and highlight 3 main clusters
+plot(species.cluster, hang = -1)
+rect.hclust(species.cluster, 3)
+
+# Create cluster groups from your hierarchical clustering
+clusters <- cutree(species.cluster, k = 3)   # k = 3 clusters, matches your dendrogram
+soil$Cluster <- as.factor(clusters)
+
+boxplot(Humdepth ~ Cluster, data = soil, notch = TRUE,
+        col = c("blue", "red", "green"),
+        main = "Humus Depth Across Species Composition Clusters",
+        xlab = "Community Cluster",
+        ylab = "Humus Depth (cm)")
+
+table(clusters, soil$Grazing)
+
+# Use humdepth 
+#Q-Q Plot of untransformed
+qqnorm(soil$Humdepth)
+qqline(soil$Humdepth, col="red")
+qqnorm(soil$pH)
+qqline(soil$pH)
+
+# Log-transform Q–Q ploto of Humdepth
+qqnorm(log10(soil$Humdepth + 1),
+       main = "Log Q–Q Plot of Percent Humus Depth (+1 adjusted)")
+qqline(log10(soil$Humdepth + 1),
+       col = "red", lwd = 2)
+
+# Shapiro–Wilk test for normality of 3 most significent, Al, Mn, Humdepth
+shapiro.test(soil$Al) # Non-normal
+shapiro.test(soil$Mn) # Non-normal
+shapiro.test(soil$Humdepth) # Normal
+  
+# Al, Mn = non-normal distribution-
+# Use a Kruskal–Wallis test, the non-parametric equivalent of ANOVA
+# This checks for differences in Al, Mn across grazing levels
+kruskal.test(Al ~ Grazing, data = soil)
+kruskal.test(Mn ~ Grazing, data = soil)
+
+# Anova for Humpdeth since Normal
+anova_result <- aov(Humdepth ~ Grazing, data = soil)
+summary(anova_result)
+
+# Spearman correlations for non-normal soil variables
+cor.test(soil$Baresoil, soil$Humdepth, method = "spearman")
+cor.test(soil$pH, soil$Al, method = "spearman")
+cor.test(soil$pH, soil$Mn, method = "spearman")
+cor.test(soil$Humdepth, soil$Al, method = "spearman")
+
+# Results summary:
+# Humdepth decreases significantly with grazing (ANOVA F₁,₂₂ = 8.05, p = 0.0096)
+# Aluminium and manganese concentrations higher in grazed sites (Kruskal p = 0.018 and 0.008)
+# Bare soil and humus depth strongly correlated (Spearman rho = 0.63, p < 0.001)
+# Aluminium increases as humus depth decreases (rho = -0.65, p < 0.001)
+# Manganese increases as pH decreases (rho = -0.55, p = 0.006)
+# NMDS stress = 0.15 indicates good fit
+# ANOSIM R = 0.36, p < 0.01 → significant compositional difference by grazing
