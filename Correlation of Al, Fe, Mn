@@ -1,0 +1,6 @@
+# Correlation of Al, Fe, Mn
+# Spearman correlations
+cor.test(merged_data$Cladrang, merged_data$Al, method = "spearman")
+cor.test(merged_data$Cladrang, merged_data$Fe, method = "spearman")
+cor.test(merged_data$Cladrang, merged_data$Mn, method = "spearman")
+
